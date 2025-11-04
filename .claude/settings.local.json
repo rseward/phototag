@@ -4,7 +4,8 @@
       "Bash(uv run phototag sync tests/images/sync-multi-*.png)",
       "Bash(uv run phototag sync --help)",
       "Bash(uv run phototag show tests/images/demo.png)",
-      "Bash(uv run pytest tests/test_cli.py::test_cli_show_command -v)"
+      "Bash(uv run pytest tests/test_cli.py::test_cli_show_command -v)",
+      "Bash(cat -A)"
     ],
     "deny": [],
     "ask": []
