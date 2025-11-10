@@ -178,6 +178,128 @@ def show_command(files: Tuple[str, ...]) -> None:
         show_file_info(Path(file_path))
 
 
+def format_file_size(size_bytes: int) -> str:
+    """Format file size in human-readable units.
+
+    Args:
+        size_bytes: File size in bytes
+
+    Returns:
+        Formatted string with appropriate unit (B, KB, MB, GB, TB)
+    """
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if size_bytes < 1024.0:
+            if unit == 'B':
+                return f"{size_bytes:.0f}{unit}"
+            else:
+                return f"{size_bytes:.1f}{unit}"
+        size_bytes /= 1024.0
+    return f"{size_bytes:.1f}PB"
+
+
+@main.command(name="ls")
+@click.option("-l", is_flag=True, help="Long format (default, option ignored)")
+@click.option("-t", is_flag=True, help="Sort by time (default, option ignored)")
+@click.option("-r", "--reverse", is_flag=True, help="Reverse sort order (oldest last)")
+@click.argument("files", nargs=-1, required=True, type=click.Path())
+def ls_command(l: bool, t: bool, reverse: bool, files: Tuple[str, ...]) -> None:
+    """List date information for PNG files in a columnar format.
+
+    Files are sorted by EXIF DateTime (oldest first) by default.
+    Use -r to reverse the order (oldest last).
+
+    \b
+    Examples:
+      phototag ls *.png
+      phototag ls -r *.png
+      phototag ls -ltr *.png  (same as -r)
+    """
+    # Collect all files to process
+    files_to_process = collect_files(list(files))
+
+    if not files_to_process:
+        click.echo("✗ No valid PNG files to process", err=True)
+        sys.exit(1)
+
+    # Collect information for all files
+    file_info = []
+    for filepath in files_to_process:
+        try:
+            handler = PNGHandler(filepath)
+
+            # Get file size
+            file_size = filepath.stat().st_size
+            size_str = format_file_size(file_size)
+
+            # Get EXIF DateTime
+            exif_dates = handler.get_exif_dates()
+            exif_datetime = exif_dates.get("DateTime", "(not set)")
+
+            # Parse EXIF DateTime for sorting
+            exif_datetime_parsed = None
+            if exif_datetime and exif_datetime != "(not set)":
+                exif_datetime_parsed = handler.parse_exif_datetime(exif_datetime)
+
+            # Get file modification time
+            mod_time = handler.get_modification_time()
+            mod_time_str = mod_time.strftime("%Y-%m-%d %H:%M:%S")
+
+            file_info.append({
+                "path": str(filepath),
+                "size": size_str,
+                "exif_datetime": exif_datetime if exif_datetime else "(not set)",
+                "exif_datetime_parsed": exif_datetime_parsed,
+                "mod_time": mod_time_str
+            })
+        except Exception as e:
+            # Include files with errors in the output
+            file_info.append({
+                "path": str(filepath),
+                "size": "(error)",
+                "exif_datetime": f"(error: {e})",
+                "exif_datetime_parsed": None,
+                "mod_time": "(error)"
+            })
+
+    if not file_info:
+        click.echo("✗ No files to display", err=True)
+        sys.exit(1)
+
+    # Sort by EXIF DateTime (oldest first by default)
+    # Files without EXIF DateTime are placed at the end
+    def sort_key(info):
+        if info["exif_datetime_parsed"]:
+            return (0, info["exif_datetime_parsed"])
+        else:
+            # Put files without EXIF DateTime at the end
+            # Use a far future date as sort key
+            return (1, datetime(9999, 12, 31))
+
+    file_info.sort(key=sort_key, reverse=reverse)
+
+    # Calculate column widths
+    max_path_len = max(len(info["path"]) for info in file_info)
+    max_size_len = max(len(info["size"]) for info in file_info)
+    max_exif_len = max(len(info["exif_datetime"]) for info in file_info)
+    max_mod_len = max(len(info["mod_time"]) for info in file_info)
+
+    # Ensure minimum column widths for headers
+    path_width = max(max_path_len, len("Path"))
+    size_width = max(max_size_len, len("Size"))
+    exif_width = max(max_exif_len, len("EXIF DateTime"))
+    mod_width = max(max_mod_len, len("File Modified"))
+
+    # Print header
+    header = f"{'Path':<{path_width}}  {'Size':>{size_width}}  {'EXIF DateTime':<{exif_width}}  {'File Modified':<{mod_width}}"
+    click.echo(header)
+    click.echo("-" * len(header))
+
+    # Print file information
+    for info in file_info:
+        line = f"{info['path']:<{path_width}}  {info['size']:>{size_width}}  {info['exif_datetime']:<{exif_width}}  {info['mod_time']:<{mod_width}}"
+        click.echo(line)
+
+
 @main.command(name="sync")
 @click.argument("files", nargs=-1, required=True, type=click.Path())
 def sync_command(files: Tuple[str, ...]) -> None:

@@ -10,6 +10,7 @@ A Python utility for managing EXIF date information and file timestamps in PNG f
 - **Synchronize Dates**: Automatically sync all date fields to the oldest date found
 - **Batch Processing**: Process multiple files with glob patterns and progress bars
 - **Inspect Metadata**: Display EXIF date fields and file timestamps
+- **List Date Information**: Quick columnar overview of date info for multiple files
 - **Performance Stats**: See processing speeds for batch operations
 
 ## Installation
@@ -104,6 +105,31 @@ File Timestamps:
   Modification Time   : 2025-11-03 14:30:00
 ```
 
+#### List date information
+
+Display a quick columnar overview of date information for multiple files:
+
+```bash
+phototag ls *.png
+```
+
+Output (sorted by EXIF DateTime, oldest first):
+```
+Path                    Size  EXIF DateTime        File Modified
+------------------------------------------------------------------------
+photo2.png              929B  1980:06:15 00:00:00  1980-06-15 00:00:00
+photo1.png              758B  1985:04:20 00:00:00  1985-04-20 00:00:00
+photo3.png           822.7KB  2025:11:03 14:30:00  2025-11-03 14:30:00
+```
+
+List in reverse order (oldest last):
+
+```bash
+phototag ls -r *.png
+# or
+phototag ls -ltr *.png
+```
+
 ### Examples
 
 #### Organize old family photos
@@ -128,6 +154,14 @@ Check what EXIF data a file contains:
 
 ```bash
 phototag show vacation-2024/beach-sunset.png
+```
+
+#### Quick overview of multiple photos
+
+Get a columnar list of date information for all photos:
+
+```bash
+phototag ls vacation-2024/*.png
 ```
 
 #### Synchronize inconsistent dates
@@ -179,6 +213,57 @@ phototag show <FILES...>
 **Output:**
 - EXIF date fields (DateTime, DateTimeOriginal, DateTimeDigitized, CreateDate)
 - File modification time
+
+### List Command
+
+```bash
+phototag ls [OPTIONS] <FILES...>
+```
+
+**Purpose:**
+Display date information for multiple PNG files in a columnar format, similar to the Unix `ls` command. Files are sorted by EXIF DateTime (oldest first) by default.
+
+**Options:**
+- `-l`: Long format (default, option ignored for compatibility)
+- `-t`: Sort by time (default, option ignored for compatibility)
+- `-r`, `--reverse`: Reverse sort order (oldest last)
+
+**Arguments:**
+- `<FILES...>`: One or more PNG files or glob patterns
+
+**Output:**
+A table with four columns, sorted by EXIF DateTime:
+- **Path**: File path
+- **Size**: File size in human-readable units (B, KB, MB, GB, TB)
+- **EXIF DateTime**: The EXIF DateTime field (or "(not set)" if missing)
+- **File Modified**: File modification timestamp
+
+**Sorting:**
+- Default: Files sorted by EXIF DateTime, oldest first
+- Files without EXIF DateTime appear at the end
+- Use `-r` or `--reverse` to sort oldest last (newest first)
+- Options `-l` and `-t` are accepted for Unix `ls` compatibility but ignored
+
+**Examples:**
+```bash
+# List files sorted by date (oldest first)
+phototag ls *.png
+
+# List in reverse order (oldest last)
+phototag ls -r *.png
+
+# Use Unix-style flags (same as -r)
+phototag ls -ltr *.png
+
+# List specific files
+phototag ls photo1.png photo2.png photo3.png
+
+# List all PNG files in directory
+phototag ls photos/*.png
+```
+
+**Use Case:**
+Get a quick overview of file size and date information across multiple files without the detailed output of the `show` command. Useful for finding oldest or newest photos in a collection.
 
 ### Sync Command
 

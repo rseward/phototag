@@ -6,7 +6,7 @@ from pathlib import Path
 from datetime import datetime
 from click.testing import CliRunner
 from PIL import Image
-from phototag.cli import main, tag_command, show_command
+from phototag.cli import main, tag_command, show_command, ls_command
 
 
 def test_cli_single_file():
@@ -251,3 +251,223 @@ def test_cli_sync_multiple_files():
 
         assert result.exit_code == 0
         assert "Synced 3 file(s) successfully" in result.output
+
+
+def test_cli_ls_command_single_file():
+    """Test the ls command with a single file."""
+    runner = CliRunner()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create and tag a test PNG
+        test_file = Path(tmpdir) / "test.png"
+        img = Image.new("RGB", (100, 100), color="purple")
+        img.save(test_file)
+
+        # Tag it with a date first
+        tag_result = runner.invoke(main, ["tag", "--date=19850420", str(test_file)])
+        assert tag_result.exit_code == 0
+
+        # Now run ls command
+        ls_result = runner.invoke(main, ["ls", str(test_file)])
+
+        assert ls_result.exit_code == 0
+        assert "Path" in ls_result.output
+        assert "Size" in ls_result.output
+        assert "EXIF DateTime" in ls_result.output
+        assert "File Modified" in ls_result.output
+        assert "1985:04:20" in ls_result.output
+        assert "test.png" in ls_result.output
+        # Check that a size value appears (should be in bytes for small files)
+        assert "B" in ls_result.output or "KB" in ls_result.output
+
+
+def test_cli_ls_command_multiple_files():
+    """Test the ls command with multiple files."""
+    runner = CliRunner()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create multiple test PNGs with different dates
+        test_files = []
+        dates = ["19800101", "19900505", "20001231"]
+
+        for i, date in enumerate(dates):
+            test_file = Path(tmpdir) / f"test{i}.png"
+            img = Image.new("RGB", (100, 100), color="red")
+            img.save(test_file)
+            test_files.append(str(test_file))
+
+            # Tag each file with a different date
+            tag_result = runner.invoke(main, ["tag", f"--date={date}", str(test_file)])
+            assert tag_result.exit_code == 0
+
+        # Run ls command on all files
+        ls_result = runner.invoke(main, ["ls"] + test_files)
+
+        assert ls_result.exit_code == 0
+        assert "Path" in ls_result.output
+        assert "Size" in ls_result.output
+        assert "EXIF DateTime" in ls_result.output
+        assert "File Modified" in ls_result.output
+        # Check that all files appear in output
+        assert "test0.png" in ls_result.output
+        assert "test1.png" in ls_result.output
+        assert "test2.png" in ls_result.output
+        # Check that dates appear
+        assert "1980:01:01" in ls_result.output
+        assert "1990:05:05" in ls_result.output
+        assert "2000:12:31" in ls_result.output
+
+
+def test_cli_ls_command_no_exif():
+    """Test the ls command with a file that has no EXIF data."""
+    runner = CliRunner()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create a test PNG without EXIF data
+        test_file = Path(tmpdir) / "test.png"
+        img = Image.new("RGB", (100, 100), color="green")
+        img.save(test_file)
+
+        # Run ls command
+        ls_result = runner.invoke(main, ["ls", str(test_file)])
+
+        assert ls_result.exit_code == 0
+        assert "Path" in ls_result.output
+        assert "Size" in ls_result.output
+        assert "EXIF DateTime" in ls_result.output
+        assert "File Modified" in ls_result.output
+        assert "(not set)" in ls_result.output
+        assert "test.png" in ls_result.output
+
+
+def test_cli_ls_command_with_glob():
+    """Test the ls command with glob pattern."""
+    runner = CliRunner()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create multiple test PNGs
+        for i in range(3):
+            test_file = Path(tmpdir) / f"photo{i}.png"
+            img = Image.new("RGB", (100, 100), color="blue")
+            img.save(test_file)
+
+        # Run ls command with glob pattern
+        glob_pattern = str(Path(tmpdir) / "photo*.png")
+        ls_result = runner.invoke(main, ["ls", glob_pattern])
+
+        assert ls_result.exit_code == 0
+        assert "photo0.png" in ls_result.output
+        assert "photo1.png" in ls_result.output
+        assert "photo2.png" in ls_result.output
+
+
+def test_cli_ls_command_sorting():
+    """Test the ls command sorts by EXIF DateTime (oldest first)."""
+    runner = CliRunner()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create multiple test PNGs with different dates in non-chronological order
+        test_files = []
+        dates_and_names = [
+            ("20001231", "file_newest.png"),
+            ("19800101", "file_oldest.png"),
+            ("19900505", "file_middle.png"),
+        ]
+
+        for date, name in dates_and_names:
+            test_file = Path(tmpdir) / name
+            img = Image.new("RGB", (100, 100), color="red")
+            img.save(test_file)
+            test_files.append(str(test_file))
+
+            # Tag each file with a different date
+            tag_result = runner.invoke(main, ["tag", f"--date={date}", str(test_file)])
+            assert tag_result.exit_code == 0
+
+        # Run ls command - should sort oldest first
+        ls_result = runner.invoke(main, ["ls"] + test_files)
+
+        assert ls_result.exit_code == 0
+
+        # Find positions of each file in output
+        lines = ls_result.output.split('\n')
+        data_lines = [line for line in lines if 'file_' in line]
+
+        # Verify order: oldest, middle, newest
+        assert data_lines[0].startswith(str(Path(tmpdir) / "file_oldest.png"))
+        assert data_lines[1].startswith(str(Path(tmpdir) / "file_middle.png"))
+        assert data_lines[2].startswith(str(Path(tmpdir) / "file_newest.png"))
+
+
+def test_cli_ls_command_reverse_sorting():
+    """Test the ls command with -r flag sorts oldest last."""
+    runner = CliRunner()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create multiple test PNGs with different dates
+        test_files = []
+        dates_and_names = [
+            ("20001231", "file_newest.png"),
+            ("19800101", "file_oldest.png"),
+            ("19900505", "file_middle.png"),
+        ]
+
+        for date, name in dates_and_names:
+            test_file = Path(tmpdir) / name
+            img = Image.new("RGB", (100, 100), color="red")
+            img.save(test_file)
+            test_files.append(str(test_file))
+
+            # Tag each file with a different date
+            tag_result = runner.invoke(main, ["tag", f"--date={date}", str(test_file)])
+            assert tag_result.exit_code == 0
+
+        # Run ls command with -r flag - should sort newest first (oldest last)
+        ls_result = runner.invoke(main, ["ls", "-r"] + test_files)
+
+        assert ls_result.exit_code == 0
+
+        # Find positions of each file in output
+        lines = ls_result.output.split('\n')
+        data_lines = [line for line in lines if 'file_' in line]
+
+        # Verify order: newest, middle, oldest
+        assert data_lines[0].startswith(str(Path(tmpdir) / "file_newest.png"))
+        assert data_lines[1].startswith(str(Path(tmpdir) / "file_middle.png"))
+        assert data_lines[2].startswith(str(Path(tmpdir) / "file_oldest.png"))
+
+
+def test_cli_ls_command_ltr_flags():
+    """Test the ls command with -ltr flags (same as -r)."""
+    runner = CliRunner()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create test PNGs with different dates
+        test_files = []
+        dates_and_names = [
+            ("19800101", "file_old.png"),
+            ("19900505", "file_new.png"),
+        ]
+
+        for date, name in dates_and_names:
+            test_file = Path(tmpdir) / name
+            img = Image.new("RGB", (100, 100), color="blue")
+            img.save(test_file)
+            test_files.append(str(test_file))
+
+            # Tag each file
+            tag_result = runner.invoke(main, ["tag", f"--date={date}", str(test_file)])
+            assert tag_result.exit_code == 0
+
+        # Run ls command with -ltr flags
+        ls_result = runner.invoke(main, ["ls", "-ltr"] + test_files)
+
+        assert ls_result.exit_code == 0
+
+        # Find positions of each file in output
+        lines = ls_result.output.split('\n')
+        data_lines = [line for line in lines if 'file_' in line]
+
+        # Verify reverse order (newest first, oldest last)
+        assert data_lines[0].startswith(str(Path(tmpdir) / "file_new.png"))
+        assert data_lines[1].startswith(str(Path(tmpdir) / "file_old.png"))
