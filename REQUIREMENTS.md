@@ -22,7 +22,7 @@ Project requirements:
 - Provide a tqdm progress meter when processing many files.
 - When processing multiple files, when finished display how many seconds it required with a files per second statistic or seconds per file stat as appropriate.
 
-## requirements
+## feature requirements
 
 ### Date tagging
 
@@ -33,7 +33,9 @@ Project requirements:
 
 Here is an example of expected command invocation
 
-### Invocation
+### "tag photo" command
+
+#### Invocation
 
 ```
 phototag --date="20251103" my-photo.png
@@ -43,6 +45,8 @@ phototag --date="20251103" my-photo.png
 
 - my-photo.png will have the exif Date set with to 20251103
 - my-photo.png modification, creation time set to 20251103
+
+### "tag photo" with mod date command
 
 ### Invocation
 
@@ -59,6 +63,8 @@ phototag --date="mod" my-photo.png
 - Also set the DateTime component to include the time portion of the modfication time
 - Make sure the final png file's creation and modification time is set to it's original modification date time.
 
+### "tag photos" with respective mod dates command
+
 ### Invocation
 
 ```
@@ -71,6 +77,8 @@ phototag --date="mod" *.png
 - Also set the DateTime component to include the time portion of the modification time
 - Make sure the final png file's creation and modification time is set to it's original modification date time.
 
+### "show photo tags" command
+
 ### Invocation
 
 ```
@@ -81,3 +89,27 @@ phototag show my-image.png
 
 - Nicely print the exif Date related fields of the image
 - Nicely print the modification and creation dates of the file.
+
+### "ls photo information" command
+
+Provide a interface like the UNIX ls command. This command will give a quick overview of the date information set for the files.
+
+#### Invocation
+
+```
+phototag ls *.png
+```
+
+#### Expectations
+
+- Display in a nice columnar format the following information
+  * path_to_image
+  * file size in easy to read human readable units
+  * exif.DateTime
+  * exif.fs_modification_date
+- Display the three fields formatted neatly in there own columns
+- Order the list of photos by their exif.DateTime field value. Oldest file first
+- If the set of options -ltr are passed to the ls command. Sort the files in reverse order. Oldest files last.
+- Ignore the "-l" option as the default ls display is long format.
+- Ignore the "-t" option as the files are by default sorted by time
+- The "-r" option sorts the files in reverse order. E.g.: oldest files last.
