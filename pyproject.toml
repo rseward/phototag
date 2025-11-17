@@ -1,7 +1,7 @@
 [project]
 name = "phototag"
-version = "0.1.0"
-description = "A python photo tagging utility for adding EXIF date information to PNG files"
+version = "0.2.0"
+description = "A python photo tagging utility for adding EXIF date information to PNG and JPG files"
 readme = "README.md"
 authors = [
     { email = "rseward@bluestone-consulting.com" }
@@ -11,6 +11,7 @@ dependencies = [
     "pillow>=10.0.0",
     "click>=8.0.0",
     "tqdm>=4.0.0",
+    "piexif>=1.1.3",
 ]
 
 [project.scripts]

@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import datetime
 from click.testing import CliRunner
 from PIL import Image
+import piexif
 from phototag.cli import main, tag_command, show_command, ls_command
 
 
@@ -471,3 +472,208 @@ def test_cli_ls_command_ltr_flags():
         # Verify reverse order (newest first, oldest last)
         assert data_lines[0].startswith(str(Path(tmpdir) / "file_new.png"))
         assert data_lines[1].startswith(str(Path(tmpdir) / "file_old.png"))
+
+
+# JPG-specific tests
+
+def test_cli_jpg_single_file():
+    """Test CLI with a single JPG file."""
+    runner = CliRunner()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create a test JPG
+        test_file = Path(tmpdir) / "test.jpg"
+        img = Image.new("RGB", (100, 100), color="blue")
+        img.save(test_file, quality=95)
+
+        # Run the CLI using tag subcommand
+        result = runner.invoke(main, ["tag", "--date=20251103", str(test_file)])
+
+        assert result.exit_code == 0
+        assert "Successfully processed" in result.output
+        assert "Processed 1 file(s) successfully" in result.output
+
+
+def test_cli_jpg_with_jpeg_extension():
+    """Test CLI with .jpeg extension."""
+    runner = CliRunner()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create a test JPEG
+        test_file = Path(tmpdir) / "test.jpeg"
+        img = Image.new("RGB", (100, 100), color="red")
+        img.save(test_file, quality=95)
+
+        # Run the CLI
+        result = runner.invoke(main, ["tag", "--date=20201225", str(test_file)])
+
+        assert result.exit_code == 0
+        assert "Processed 1 file(s) successfully" in result.output
+
+
+def test_cli_jpg_show_command():
+    """Test the show command with JPG files."""
+    runner = CliRunner()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create and tag a test JPG
+        test_file = Path(tmpdir) / "test.jpg"
+        img = Image.new("RGB", (100, 100), color="purple")
+        img.save(test_file, quality=95)
+
+        # First tag it with a date
+        tag_result = runner.invoke(main, ["tag", "--date=19850420", str(test_file)])
+        assert tag_result.exit_code == 0
+
+        # Now show the info
+        show_result = runner.invoke(main, ["show", str(test_file)])
+
+        assert show_result.exit_code == 0
+        assert "EXIF Date Fields" in show_result.output
+        assert "File Timestamps" in show_result.output
+        assert "DateTime" in show_result.output
+        assert "1985:04:20" in show_result.output
+
+
+def test_cli_jpg_sync_command():
+    """Test the sync command with JPG files."""
+    runner = CliRunner()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create a test JPG with mismatched dates
+        test_file = Path(tmpdir) / "test.jpg"
+        img = Image.new("RGB", (100, 100), color="orange")
+
+        # Create EXIF data with different dates
+        exif_dict = {"0th": {}, "Exif": {}}
+        exif_dict["0th"][piexif.ImageIFD.DateTime] = b"1980:06:15 10:30:45"  # Oldest
+        exif_dict["Exif"][piexif.ExifIFD.DateTimeOriginal] = b"1990:01:01 00:00:00"  # Newer
+
+        exif_bytes = piexif.dump(exif_dict)
+        img.save(test_file, exif=exif_bytes, quality=95)
+
+        # Set file modification time to even newer date
+        newer_date = datetime(2000, 12, 25, 15, 45, 30)
+        os.utime(test_file, (newer_date.timestamp(), newer_date.timestamp()))
+
+        # Run sync command
+        result = runner.invoke(main, ["sync", str(test_file)])
+
+        assert result.exit_code == 0
+        assert "Successfully synced" in result.output
+        assert "1980-06-15 10:30:45" in result.output
+
+        # Verify dates are synchronized
+        img_after = Image.open(test_file)
+        exif_after = piexif.load(img_after.info.get("exif", b""))
+        assert exif_after["0th"][piexif.ImageIFD.DateTime] == b"1980:06:15 10:30:45"
+        assert exif_after["Exif"][piexif.ExifIFD.DateTimeOriginal] == b"1980:06:15 10:30:45"
+
+
+def test_cli_mixed_png_jpg_files():
+    """Test CLI with both PNG and JPG files in the same command."""
+    runner = CliRunner()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create test PNG files
+        png_files = []
+        for i in range(2):
+            test_file = Path(tmpdir) / f"test{i}.png"
+            img = Image.new("RGB", (100, 100), color="red")
+            img.save(test_file)
+            png_files.append(str(test_file))
+
+        # Create test JPG files
+        jpg_files = []
+        for i in range(2):
+            test_file = Path(tmpdir) / f"test{i}.jpg"
+            img = Image.new("RGB", (100, 100), color="blue")
+            img.save(test_file, quality=95)
+            jpg_files.append(str(test_file))
+
+        # Run the CLI with mixed file types
+        all_files = png_files + jpg_files
+        result = runner.invoke(main, ["tag", "--date=20251103"] + all_files)
+
+        assert result.exit_code == 0
+        assert "Processed 4 file(s) successfully" in result.output
+
+
+def test_cli_jpg_ls_command():
+    """Test the ls command with JPG files."""
+    runner = CliRunner()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create multiple JPG files with different dates
+        test_files = []
+        dates_and_names = [
+            ("19800101", "file_old.jpg"),
+            ("19900505", "file_middle.jpg"),
+            ("20001231", "file_new.jpg"),
+        ]
+
+        for date, name in dates_and_names:
+            test_file = Path(tmpdir) / name
+            img = Image.new("RGB", (100, 100), color="green")
+            img.save(test_file, quality=95)
+            test_files.append(str(test_file))
+
+            # Tag each file with a different date
+            tag_result = runner.invoke(main, ["tag", f"--date={date}", str(test_file)])
+            assert tag_result.exit_code == 0
+
+        # Run ls command on all files
+        ls_result = runner.invoke(main, ["ls"] + test_files)
+
+        assert ls_result.exit_code == 0
+        assert "Path" in ls_result.output
+        assert "Size" in ls_result.output
+        assert "EXIF DateTime" in ls_result.output
+        # Verify files are sorted by date (oldest first)
+        lines = ls_result.output.split('\n')
+        data_lines = [line for line in lines if 'file_' in line]
+        assert data_lines[0].startswith(str(Path(tmpdir) / "file_old.jpg"))
+        assert data_lines[1].startswith(str(Path(tmpdir) / "file_middle.jpg"))
+        assert data_lines[2].startswith(str(Path(tmpdir) / "file_new.jpg"))
+
+
+def test_cli_mixed_ls_command():
+    """Test the ls command with both PNG and JPG files."""
+    runner = CliRunner()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create PNG and JPG files with different dates
+        test_files = []
+        files_data = [
+            ("19800101", "file1.png", "red"),
+            ("19900505", "file2.jpg", "blue"),
+            ("20001231", "file3.png", "green"),
+        ]
+
+        for date, name, color in files_data:
+            test_file = Path(tmpdir) / name
+            img = Image.new("RGB", (100, 100), color=color)
+
+            if name.endswith('.png'):
+                img.save(test_file)
+            else:
+                img.save(test_file, quality=95)
+
+            test_files.append(str(test_file))
+
+            # Tag each file
+            tag_result = runner.invoke(main, ["tag", f"--date={date}", str(test_file)])
+            assert tag_result.exit_code == 0
+
+        # Run ls command
+        ls_result = runner.invoke(main, ["ls"] + test_files)
+
+        assert ls_result.exit_code == 0
+        # Verify both file types appear
+        assert "file1.png" in ls_result.output
+        assert "file2.jpg" in ls_result.output
+        assert "file3.png" in ls_result.output
+        # Verify sorting by date
+        lines = ls_result.output.split('\n')
+        data_lines = [line for line in lines if 'file' in line and '.png' in line or '.jpg' in line]
+        assert len(data_lines) >= 3

@@ -10,14 +10,36 @@ import click
 from tqdm import tqdm
 
 from .png_handler import PNGHandler
+from .jpg_handler import JPGHandler
 from .utils import parse_date
 
 
-def process_file(filepath: Path, date_str: str, quiet: bool = False) -> Tuple[bool, str]:
-    """Process a single PNG file.
+def get_handler(filepath: Path):
+    """Get the appropriate handler for the file type.
 
     Args:
-        filepath: Path to the PNG file
+        filepath: Path to the image file
+
+    Returns:
+        PNGHandler or JPGHandler instance
+
+    Raises:
+        ValueError: If file type is not supported
+    """
+    suffix = filepath.suffix.lower()
+    if suffix == ".png":
+        return PNGHandler(filepath)
+    elif suffix in [".jpg", ".jpeg"]:
+        return JPGHandler(filepath)
+    else:
+        raise ValueError(f"Unsupported file type: {suffix}. Only PNG and JPG files are supported.")
+
+
+def process_file(filepath: Path, date_str: str, quiet: bool = False) -> Tuple[bool, str]:
+    """Process a single image file (PNG or JPG).
+
+    Args:
+        filepath: Path to the image file
         date_str: Date string (YYYYMMDD format or "mod")
         quiet: If True, suppress per-file messages
 
@@ -25,7 +47,7 @@ def process_file(filepath: Path, date_str: str, quiet: bool = False) -> Tuple[bo
         Tuple of (success: bool, message: str)
     """
     try:
-        handler = PNGHandler(filepath)
+        handler = get_handler(filepath)
 
         # Determine the date to use
         if date_str.lower() == "mod":
@@ -71,15 +93,16 @@ def process_file(filepath: Path, date_str: str, quiet: bool = False) -> Tuple[bo
 
 
 def collect_files(file_patterns: List[str]) -> List[Path]:
-    """Collect all PNG files from the given patterns.
+    """Collect all image files (PNG and JPG) from the given patterns.
 
     Args:
         file_patterns: List of file paths or glob patterns
 
     Returns:
-        List of Path objects for PNG files to process
+        List of Path objects for image files to process
     """
     files_to_process = []
+    supported_extensions = {".png", ".jpg", ".jpeg"}
 
     for file_pattern in file_patterns:
         file_path = Path(file_pattern)
@@ -94,9 +117,9 @@ def collect_files(file_patterns: List[str]) -> List[Path]:
                 click.echo(f"✗ No files matched pattern: {file_pattern}", err=True)
                 continue
 
-            # Filter for PNG files only
+            # Filter for supported image files
             for matched_file in matching_files:
-                if matched_file.suffix.lower() == ".png":
+                if matched_file.suffix.lower() in supported_extensions:
                     files_to_process.append(matched_file)
         else:
             # Single file
@@ -106,13 +129,13 @@ def collect_files(file_patterns: List[str]) -> List[Path]:
 
 
 def show_file_info(filepath: Path) -> None:
-    """Display EXIF and file date information for a PNG file.
+    """Display EXIF and file date information for an image file.
 
     Args:
-        filepath: Path to the PNG file
+        filepath: Path to the image file (PNG or JPG)
     """
     try:
-        handler = PNGHandler(filepath)
+        handler = get_handler(filepath)
 
         # Get EXIF dates
         exif_dates = handler.get_exif_dates()
@@ -152,14 +175,16 @@ def show_file_info(filepath: Path) -> None:
 
 @click.group()
 def main() -> None:
-    """A photo tagging utility for adding EXIF date information to PNG files.
+    """A photo tagging utility for adding EXIF date information to image files.
+
+    Supports both PNG and JPG/JPEG files.
 
     \b
     Examples:
       phototag --date="20251103" my-photo.png
-      phototag --date="mod" my-photo.png
-      phototag --date="mod" *.png
-      phototag show my-image.png
+      phototag --date="mod" my-photo.jpg
+      phototag --date="mod" *.png *.jpg
+      phototag show my-image.jpg
     """
     pass
 
@@ -167,12 +192,12 @@ def main() -> None:
 @main.command(name="show")
 @click.argument("files", nargs=-1, required=True, type=click.Path(exists=True))
 def show_command(files: Tuple[str, ...]) -> None:
-    """Display EXIF date fields and file timestamps for PNG files.
+    """Display EXIF date fields and file timestamps for image files.
 
     \b
     Examples:
       phototag show my-image.png
-      phototag show image1.png image2.png
+      phototag show image1.jpg image2.png
     """
     for file_path in files:
         show_file_info(Path(file_path))
@@ -203,7 +228,7 @@ def format_file_size(size_bytes: int) -> str:
 @click.option("-r", "--reverse", is_flag=True, help="Reverse sort order (oldest last)")
 @click.argument("files", nargs=-1, required=True, type=click.Path())
 def ls_command(l: bool, t: bool, reverse: bool, files: Tuple[str, ...]) -> None:
-    """List date information for PNG files in a columnar format.
+    """List date information for image files in a columnar format.
 
     Files are sorted by EXIF DateTime (oldest first) by default.
     Use -r to reverse the order (oldest last).
@@ -211,21 +236,22 @@ def ls_command(l: bool, t: bool, reverse: bool, files: Tuple[str, ...]) -> None:
     \b
     Examples:
       phototag ls *.png
-      phototag ls -r *.png
+      phototag ls *.jpg
+      phototag ls -r *.png *.jpg
       phototag ls -ltr *.png  (same as -r)
     """
     # Collect all files to process
     files_to_process = collect_files(list(files))
 
     if not files_to_process:
-        click.echo("✗ No valid PNG files to process", err=True)
+        click.echo("✗ No valid image files to process", err=True)
         sys.exit(1)
 
     # Collect information for all files
     file_info = []
     for filepath in files_to_process:
         try:
-            handler = PNGHandler(filepath)
+            handler = get_handler(filepath)
 
             # Get file size
             file_size = filepath.stat().st_size
@@ -312,12 +338,14 @@ def sync_command(files: Tuple[str, ...]) -> None:
     Examples:
       phototag sync my-photo.png
       phototag sync *.png
+      phototag sync *.jpg
+      phototag sync *.png *.jpg
     """
     # Collect all files to process
     files_to_process = collect_files(list(files))
 
     if not files_to_process:
-        click.echo("✗ No valid PNG files to process", err=True)
+        click.echo("✗ No valid image files to process", err=True)
         sys.exit(1)
 
     # Process files with progress bar if multiple files
@@ -335,7 +363,7 @@ def sync_command(files: Tuple[str, ...]) -> None:
         with tqdm(total=len(files_to_process), desc="Syncing files", unit="file") as pbar:
             for filepath in files_to_process:
                 try:
-                    handler = PNGHandler(filepath)
+                    handler = get_handler(filepath)
                     oldest_date = handler.get_oldest_date()
 
                     # Set EXIF date and file timestamps to the oldest date
@@ -352,7 +380,7 @@ def sync_command(files: Tuple[str, ...]) -> None:
         # Single file, show normal output
         for filepath in files_to_process:
             try:
-                handler = PNGHandler(filepath)
+                handler = get_handler(filepath)
                 oldest_date = handler.get_oldest_date()
 
                 click.echo(f"Found oldest date for {filepath}: {oldest_date.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -403,19 +431,19 @@ def sync_command(files: Tuple[str, ...]) -> None:
 )
 @click.argument("files", nargs=-1, required=True, type=click.Path())
 def tag_command(date: str, files: Tuple[str, ...]) -> None:
-    """Set EXIF date information and file timestamps for PNG files.
+    """Set EXIF date information and file timestamps for image files.
 
     \b
     Examples:
       phototag tag --date="20251103" my-photo.png
-      phototag tag --date="mod" my-photo.png
-      phototag tag --date="mod" *.png
+      phototag tag --date="mod" my-photo.jpg
+      phototag tag --date="mod" *.png *.jpg
     """
     # Collect all files to process
     files_to_process = collect_files(list(files))
 
     if not files_to_process:
-        click.echo("✗ No valid PNG files to process", err=True)
+        click.echo("✗ No valid image files to process", err=True)
         sys.exit(1)
 
     # Process files with progress bar if multiple files
