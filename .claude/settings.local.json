@@ -1,29 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(uv run phototag sync tests/images/sync-multi-*.png)",
-      "Bash(uv run phototag sync --help)",
-      "Bash(uv run phototag show tests/images/demo.png)",
-      "Bash(uv run pytest tests/test_cli.py::test_cli_show_command -v)",
-      "Bash(cat -A)",
-      "Bash(uv run phototag ls tests/images/demo.png tests/images/sync-test.png tests/images/test-photo.png)",
-      "Bash(uv run phototag ls \"tests/images/sync-multi-*.png\")",
-      "Bash(uv run phototag ls \"tests/images/test-*.png\")",
-      "Bash(uv run pytest tests/test_cli.py::test_cli_ls_command_single_file -v)",
-      "Bash(uv run pytest tests/test_cli.py::test_cli_ls_command_multiple_files tests/test_cli.py::test_cli_ls_command_no_exif tests/test_cli.py::test_cli_ls_command_with_glob -v)",
-      "Bash(uv run pytest tests/test_cli.py -v)",
-      "Bash(uv run phototag ls \"tests/images/*.png\")",
-      "Bash(uv run phototag --help)",
-      "Bash(uv run phototag ls --help)",
-      "Bash(uv run pytest tests/test_cli.py::test_cli_ls_command_single_file tests/test_cli.py::test_cli_ls_command_multiple_files tests/test_cli.py::test_cli_ls_command_no_exif tests/test_cli.py::test_cli_ls_command_with_glob -v)",
-      "Bash(uv run phototag ls -r \"tests/images/*.png\")",
-      "Bash(uv run phototag ls -ltr tests/images/demo.png tests/images/sync-test.png tests/images/test-photo.png)",
-      "Bash(uv run pytest tests/test_cli.py::test_cli_ls_command_sorting tests/test_cli.py::test_cli_ls_command_reverse_sorting tests/test_cli.py::test_cli_ls_command_ltr_flags -v)",
-      "Bash(uv run phototag ls tests/images/demo.png tests/images/sync-test.png tests/images/demo2.png tests/images/test-photo.png)",
-      "Bash(uv run phototag ls -r tests/images/demo.png tests/images/sync-test.png tests/images/demo2.png tests/images/test-photo.png)",
-      "Bash(git add README.md RELEASE.md src/phototag/cli.py tests/test_cli.py)",
-      "Bash(git commit -m \"$(cat <<''EOF''\nImplement ls command for listing photo date information\n\n- Add ls command with columnar display of path, size, EXIF DateTime, and file modification time\n- Implement file size formatting in human-readable units (B, KB, MB, GB, TB)\n- Add sorting by EXIF DateTime (oldest first by default)\n- Add -r/--reverse flag for reverse sorting (oldest last)\n- Add -l and -t flags for Unix ls compatibility (ignored)\n- Support -ltr flag combination for familiar Unix workflow\n- Files without EXIF DateTime appear at end of sorted list\n- Add comprehensive unit tests (18 total tests, all passing)\n- Update README.md with ls command documentation and examples\n- Update RELEASE.md with feature description for 0.1.0 release\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
-      "Bash(git tag -a v0.1.0 -m \"Release version 0.1.0\n\nInitial release of phototag - a Python utility for managing EXIF date information in PNG files.\n\nFeatures:\n- tag command: Set EXIF dates and file timestamps\n- show command: Display detailed EXIF information\n- ls command: List files with date info in columnar format (sorted by date)\n- sync command: Synchronize all date fields to oldest date\n- Batch processing with progress bars\n- Human-readable file sizes\n- Comprehensive test coverage (18 unit tests)\n\nSee RELEASE.md for full details.\")"
+      "Bash(git add README.md RELEASE.md pyproject.toml src/phototag/cli.py src/phototag/jpg_handler.py tests/test_cli.py tests/test_jpg_handler.py tests/images/*.jpg tests/images/*.png)",
+      "Bash(git add README.md RELEASE.md pyproject.toml src/phototag/cli.py src/phototag/jpg_handler.py tests/test_cli.py tests/test_jpg_handler.py tests/images/*.jpg)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nAdd full JPG/JPEG support for v0.2.0 release\n\nMajor feature release adding comprehensive JPG/JPEG support to phototag.\n\nNew Features:\n- Full JPG/JPEG file format support with proper EXIF handling\n- Mixed format processing - process PNG and JPG files together\n- New jpg_handler.py module implementing all PNG features for JPG files\n- Automatic format detection in CLI commands\n\nUpdates:\n- All commands (tag, show, ls, sync) now work with both PNG and JPG files\n- Updated README.md with comprehensive examples for both formats\n- Added 21 new tests for JPG functionality (50 total tests, all passing)\n- Added piexif>=1.1.3 dependency for JPG EXIF handling\n- Updated version to 0.2.0 in pyproject.toml\n- Updated RELEASE.md with v0.2.0 details\n\nTechnical Details:\n- PNG files: EXIF stored as PNG text chunks (unchanged)\n- JPG files: Standard EXIF format using piexif library\n- JPG quality set to 95 to minimize quality loss\n- Supports .jpg and .jpeg file extensions\n\nTest Coverage:\n- 14 new JPG handler unit tests\n- 7 new CLI tests for JPG and mixed format processing\n- All 50 tests passing\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git tag -a v0.2.0 -m \"Release version 0.2.0\n\nMajor feature release adding full JPG/JPEG support to phototag.\n\nNew Features:\n- Full JPG/JPEG file format support with proper EXIF handling using piexif\n- Mixed format processing - process PNG and JPG files together in single commands\n- New jpg_handler.py module implementing all PNG features for JPG files\n- Automatic format detection in CLI - handlers selected based on file extension\n\nAll Commands Updated:\n- tag: Set EXIF dates for both PNG and JPG files\n- show: Display EXIF information for both formats\n- ls: List and sort mixed format files by date\n- sync: Synchronize dates across both formats\n\nTechnical Implementation:\n- PNG files: EXIF stored as PNG text chunks (unchanged from v0.1.0)\n- JPG files: Standard EXIF format using piexif library\n- JPG quality=95 to minimize quality loss when updating EXIF\n- Supports both .jpg and .jpeg file extensions\n\nTest Coverage:\n- Added 21 new tests (14 JPG handler tests + 7 CLI tests)\n- Total of 50 tests, all passing\n- Comprehensive coverage for single format, mixed format, and edge cases\n\nDocumentation:\n- Updated README.md with examples for both PNG and JPG\n- Updated RELEASE.md with detailed v0.2.0 notes\n- Added examples for mixed format processing\n\nDependencies:\n- Added piexif>=1.1.3\n\nSee RELEASE.md for full details.\")",
+      "Bash(uv run pytest tests/ -v --tb=short)",
+      "Bash(cat pyproject.toml)"
     ],
     "deny": [],
     "ask": []
